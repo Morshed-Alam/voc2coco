@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 from typing import Dict, List
 from tqdm import tqdm
 import re
+import glob
 
 
 def get_label2id(labels_path: str) -> Dict[str, int]:
@@ -15,41 +16,26 @@ def get_label2id(labels_path: str) -> Dict[str, int]:
     return dict(zip(labels_str, labels_ids))
 
 
-def get_annpaths(ann_dir_path: str = None,
-                 ann_ids_path: str = None,
-                 ext: str = '',
-                 annpaths_list_path: str = None) -> List[str]:
-    # If use annotation paths list
-    if annpaths_list_path is not None:
-        with open(annpaths_list_path, 'r') as f:
-            ann_paths = f.read().split()
-        return ann_paths
-
-    # If use annotaion ids list
-    ext_with_dot = '.' + ext if ext != '' else ''
-    with open(ann_ids_path, 'r') as f:
-        ann_ids = f.read().split()
-    ann_paths = [os.path.join(ann_dir_path, aid+ext_with_dot) for aid in ann_ids]
-    return ann_paths
+def get_annpaths(ann_dir_path: str = None) -> List[str]:
+    ann_path_lists = [file for file in glob.glob(ann_dir_path+'/*.xml')]
+    return ann_path_list
 
 
-def get_image_info(annotation_root, extract_num_from_imgid=True):
-    path = annotation_root.findtext('path')
-    if path is None:
-        filename = annotation_root.findtext('filename')
-    else:
-        filename = os.path.basename(path)
-    img_name = os.path.basename(filename)
+def get_image_info(annotation_file, annotation_root):
+    path = os.path.splitext(annotation_file)
+    formats = ['.jpg', '.jpeg', '.JPG', '.png', '.PNG']
+    image_file = []
+    for format in formats:
+        image_file.extend(glob.glob(path[0]+format))
+
+    img_name = os.path.split(image_file[0])[1]
     img_id = os.path.splitext(img_name)[0]
-    if extract_num_from_imgid and isinstance(img_id, str):
-        img_id = int(re.findall(r'\d+', img_id)[0])
-
     size = annotation_root.find('size')
     width = int(size.findtext('width'))
     height = int(size.findtext('height'))
 
     image_info = {
-        'file_name': filename,
+        'file_name': image_name,
         'height': height,
         'width': width,
         'id': img_id
@@ -82,8 +68,7 @@ def get_coco_annotation_from_obj(obj, label2id):
 
 def convert_xmls_to_cocojson(annotation_paths: List[str],
                              label2id: Dict[str, int],
-                             output_jsonpath: str,
-                             extract_num_from_imgid: bool = True):
+                             output_jsonpath: str):
     output_json_dict = {
         "images": [],
         "type": "instances",
@@ -97,8 +82,7 @@ def convert_xmls_to_cocojson(annotation_paths: List[str],
         ann_tree = ET.parse(a_path)
         ann_root = ann_tree.getroot()
 
-        img_info = get_image_info(annotation_root=ann_root,
-                                  extract_num_from_imgid=extract_num_from_imgid)
+        img_info = get_image_info(annotation_file=a_path, annotation_root=ann_root)
         img_id = img_info['id']
         output_json_dict['images'].append(img_info)
 
@@ -121,28 +105,18 @@ def main():
     parser = argparse.ArgumentParser(
         description='This script support converting voc format xmls to coco format json')
     parser.add_argument('--ann_dir', type=str, default=None,
-                        help='path to annotation files directory. It is not need when use --ann_paths_list')
-    parser.add_argument('--ann_ids', type=str, default=None,
-                        help='path to annotation files ids list. It is not need when use --ann_paths_list')
-    parser.add_argument('--ann_paths_list', type=str, default=None,
-                        help='path of annotation paths list. It is not need when use --ann_dir and --ann_ids')
+                        help='path to annotation files directory.)
     parser.add_argument('--labels', type=str, default=None,
                         help='path to label list.')
     parser.add_argument('--output', type=str, default='output.json', help='path to output json file')
-    parser.add_argument('--ext', type=str, default='', help='additional extension of annotation file')
     args = parser.parse_args()
     label2id = get_label2id(labels_path=args.labels)
     ann_paths = get_annpaths(
-        ann_dir_path=args.ann_dir,
-        ann_ids_path=args.ann_ids,
-        ext=args.ext,
-        annpaths_list_path=args.ann_paths_list
-    )
+        ann_dir_path=args.ann_dir)
     convert_xmls_to_cocojson(
         annotation_paths=ann_paths,
         label2id=label2id,
-        output_jsonpath=args.output,
-        extract_num_from_imgid=True
+        output_jsonpath=args.output
     )
 
 
