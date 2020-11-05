@@ -106,7 +106,7 @@ def main():
         description='This script support converting voc format xmls to coco format json')
     parser.add_argument('--ann_dir', type=str, default=None,
                         help='path to annotation files directory.)
-    parser.add_argument('--labels', type=str, default=None,
+    parser.add_argument('--labels', type=str, default='./labels.txt',
                         help='path to label list.')
     parser.add_argument('--output', type=str, default='output.json', help='path to output json file')
     args = parser.parse_args()
